@@ -1,7 +1,8 @@
 use std::fmt::Display;
 use std::io::Write;
-use std::net::TcpListener;
-use std::result;
+use std::net::{TcpListener, TcpStream};
+use std::sync::mpsc::{channel, Receiver};
+use std::{result, thread};
 
 type Result<T> = result::Result<T, ()>;
 
@@ -21,6 +22,20 @@ impl<T: Display> Display for Sensitive<T> {
     }
 }
 
+enum Message {
+    ClientConnected,
+    ClientDisconnected,
+    New,
+}
+fn server(_message: Receiver<Message>) -> Result<()> {
+    Ok(())
+}
+
+fn client(mut stream: TcpStream) -> Result<()> {
+    let _w = writeln!(stream, "Hello").map_err(|e| eprintln!("cannot write stream to user {e}"));
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let address = "127.0.0.1:6969";
 
@@ -29,12 +44,14 @@ fn main() -> Result<()> {
 
     println!("INFO: listening to {}", Sensitive(address));
 
+    let (message_sender, message_revciver) = channel::<Message>();
+    thread::spawn(|| server(message_revciver));
+
     for stream in tcp_listener.incoming() {
         match stream {
-            Ok(mut s) => {
+            Ok(s) => {
                 println!("{s:#?}");
-                let _w =
-                    writeln!(s, "Hello").map_err(|e| eprintln!("cannot write stream to user {e}"));
+                thread::spawn(|| client(s));
             }
             Err(e) => eprintln!("encounter IO error: {e}"),
         }
