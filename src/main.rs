@@ -11,10 +11,11 @@ const SAFE_MODE: bool = false;
 
 impl<T: Display> Display for Sensitive<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self(inner) = self;
         if SAFE_MODE {
             let _var_name = writeln!(f, "[REDACTED]");
         } else {
-            let _var_name = writeln!(f, "{inner}", inner = self.0);
+            let _var_name = inner.fmt(f);
         }
         Ok(())
     }
