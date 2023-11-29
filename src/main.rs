@@ -5,15 +5,7 @@ use std::result;
 
 type Result<T> = result::Result<T, ()>;
 
-struct Sensitive<T> {
-    inner: T,
-}
-
-impl<T> Sensitive<T> {
-    fn new(inner: T) -> Self {
-        Self { inner }
-    }
-}
+struct Sensitive<T>(T);
 
 const SAFE_MODE: bool = false;
 
@@ -22,7 +14,7 @@ impl<T: Display> Display for Sensitive<T> {
         if SAFE_MODE {
             let _var_name = writeln!(f, "[REDACTED]");
         } else {
-            let _var_name = writeln!(f, "{inner}", inner = self.inner);
+            let _var_name = writeln!(f, "{inner}", inner = self.0);
         }
         Ok(())
     }
@@ -32,9 +24,9 @@ fn main() -> Result<()> {
     let address = "127.0.0.1:6969";
 
     let tcp_listener = TcpListener::bind(address)
-        .map_err(|err| eprint!("ERROR: could not bind {address}: {}", Sensitive::new(err)))?;
+        .map_err(|err| eprint!("ERROR: could not bind {address}: {}", Sensitive(err)))?;
 
-    println!("INFO: listening to {}", Sensitive::new(address));
+    println!("INFO: listening to {}", Sensitive(address));
 
     for stream in tcp_listener.incoming() {
         match stream {
