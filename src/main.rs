@@ -1,7 +1,7 @@
 use std::fmt::Display;
-use std::io::Write;
+use std::io::Read;
 use std::net::{TcpListener, TcpStream};
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{result, thread};
 
 type Result<T> = result::Result<T, ()>;
@@ -25,15 +25,28 @@ impl<T: Display> Display for Sensitive<T> {
 enum Message {
     ClientConnected,
     ClientDisconnected,
-    New,
+    New(Vec<u8>),
 }
 fn server(_message: Receiver<Message>) -> Result<()> {
     Ok(())
 }
 
-fn client(mut stream: TcpStream) -> Result<()> {
-    let _w = writeln!(stream, "Hello").map_err(|e| eprintln!("cannot write stream to user {e}"));
-    Ok(())
+fn client(mut stream: TcpStream, messages: Sender<Message>) -> Result<()> {
+    messages
+        .send(Message::ClientConnected)
+        .map_err(|err| eprintln!("ERROR: couldn't send message to server thread: {err}"))?;
+
+    let mut buffer = vec![0; 64];
+
+    loop {
+        let n = stream.read(&mut buffer).map_err(|_| {
+            let _ = messages.send(Message::ClientDisconnected);
+        })?;
+
+        let _ = messages
+            .send(Message::New(buffer[0..n].to_vec()))
+            .map_err(|err| eprintln!("ERROR: couldn't send message to server thread: {err}"));
+    }
 }
 
 fn main() -> Result<()> {
@@ -51,7 +64,8 @@ fn main() -> Result<()> {
         match stream {
             Ok(s) => {
                 println!("{s:#?}");
-                thread::spawn(|| client(s));
+                let message_sender = message_sender.clone();
+                thread::spawn(|| client(s, message_sender));
             }
             Err(e) => eprintln!("encounter IO error: {e}"),
         }
