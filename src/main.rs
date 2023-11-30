@@ -84,35 +84,6 @@ fn server(messages: Receiver<Message>) -> Result<()> {
     }
 }
 
-fn decode_to_slice<T: AsRef<[u8]>>(data: T, out: &mut [u8]) -> Result<()> {
-    const fn val(c: u8) -> Result<u8> {
-        match c {
-            b'A'..=b'F' => Ok(c - b'A' + 10),
-            b'a'..=b'f' => Ok(c - b'a' + 10),
-            b'0'..=b'9' => Ok(c - b'0'),
-            _ => todo!(),
-        }
-    }
-    let data = data.as_ref();
-
-    if data.len() % 2 != 0 {
-        eprintln!("data is not divided by 2");
-        return Ok(());
-    }
-
-    println!("{} != {}", data.len() / 2, out.len());
-    if data.len() / 2 != out.len() {
-        eprintln!("to small buffer");
-        return Ok(());
-    }
-
-    for (i, byte) in out.iter_mut().enumerate() {
-        *byte = val(data[2 * i])? << 4 | val(data[2 * i + 1])?;
-    }
-
-    Ok(())
-}
-
 fn client(stream: Arc<TcpStream>, messages: Sender<Message>) -> Result<()> {
     messages
         .send(Message::ClientConnected(stream.clone()))
@@ -125,29 +96,10 @@ fn client(stream: Arc<TcpStream>, messages: Sender<Message>) -> Result<()> {
             let _ = messages.send(Message::ClientDisconnected(stream.clone()));
         })?;
 
-        const DATA: &str = "48656c6c6f20636c69656e743a203132372e302e302e313a3535313336";
-        let mut byte_array = [0; DATA.len() / 2];
-
-        let _ = decode_to_slice(DATA, &mut byte_array);
-
-        println!("TEST: {}", String::from_utf8(byte_array.to_vec()).unwrap());
-
         if n == 0 {
             let _ = messages.send(Message::ClientDisconnected(stream.clone()));
             break Ok(());
         }
-
-        let client_addr = stream.deref().peer_addr().map_err(|e| {
-            eprintln!("cannot get address:{e}");
-        })?;
-
-        let message_content =
-            String::from_utf8(buffer.clone()).expect("buffer cannot be converter to utf8");
-
-        println!(
-            "Client: {}, filling the buffer:{}",
-            client_addr, message_content
-        );
 
         let _ = messages
             .send(Message::New {
